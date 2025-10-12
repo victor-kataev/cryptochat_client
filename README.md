@@ -1,1 +1,1 @@
-CLI client of cryptochat.
+CLI client of cryptochat
