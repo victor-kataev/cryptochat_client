@@ -140,18 +140,18 @@ def create_account_with_mnemonic(passphrase_for_storage: str | None = None, auto
     mnemonic = generate_mnemonic(128)  # 12 words
     bip39_seed = mnemonic_to_bip39_seed(mnemonic, passphrase="")  # allow empty BIP39 passphrase
     seed32 = derive_ed25519_seed_from_bip39_seed(bip39_seed)
-    sk = ed25519_keypair_from_seed(seed32)
+    privkey = ed25519_keypair_from_seed(seed32)
     
     # store encrypted private key
     if passphrase_for_storage:
-        pem = serialize_private_key_pkcs8_encrypted(sk, passphrase_for_storage.encode())
+        pem = serialize_private_key_pkcs8_encrypted(privkey, passphrase_for_storage.encode())
         write_private_pem_file(pem)
     else:
         sym_key = os.urandom(32)
         if auto_store_in_keyring:
             store_key_in_keyring(sym_key)
 
-        raw_priv = sk.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
+        raw_priv = privkey.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
 
         aes = AESGCM(sym_key)
         nonce = os.urandom(12)
@@ -160,14 +160,19 @@ def create_account_with_mnemonic(passphrase_for_storage: str | None = None, auto
         blob_path = PRIVATE_KEY_FILENAME + ".blob"
         write_private_pem_file(nonce + ct, blob_path)
 
-    public_bytes = sk.public_key().public_bytes(
+    public_bytes = privkey.public_key().public_bytes(
         encoding=Encoding.Raw,
         format=PublicFormat.Raw
     )
     pk_str = base64.b64encode(public_bytes).decode('utf-8')
+    
     return mnemonic, pk_str
 
 
-def extract_sk():
+def read_privkey() -> Ed25519PrivateKey:
     sym_key = retrieve_key_from_keyring()
     return load_ed25519_from_blob(PRIVATE_KEY_FILENAME + ".blob", sym_key)
+
+
+def import_account_from_mnemonic(mnemonic: str):
+    ...
