@@ -72,11 +72,3 @@ def ed25519_keypair_from_seed(seed32: bytes) -> Ed25519PrivateKey:
         raise ValueError("seed32 must be 32 bytes")
     return Ed25519PrivateKey.from_private_bytes(seed32)
 
-
-def import_account_from_mnemonic(mnemonic: str):
-    """
-    Import account from mnemonic phrase.
-
-    TODO: Implementation pending
-    """
-    ...

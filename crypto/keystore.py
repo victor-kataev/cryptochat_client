@@ -151,6 +151,32 @@ def create_account_with_mnemonic(passphrase_for_storage: str | None = None, auto
     return mnemonic, pk_str
 
 
+def import_keypair_from_mnemonic(mnemonic: str) -> str:
+    """
+    Derive keypair from mnemonic.
+    Store priv key locally in blob.
+    """
+    # derive privkey from mnemonic
+    bip39_seed = mnemonic_to_bip39_seed(mnemonic, passphrase="")
+    seed32 = derive_ed25519_seed_from_bip39_seed(bip39_seed)
+    privkey = ed25519_keypair_from_seed(seed32)
+
+    # store privkey (ciphered)
+    sym_key = os.urandom(32)
+    store_key_in_keyring(sym_key)
+    raw_priv = privkey.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
+    aes = AESGCM(sym_key)
+    nonce = os.urandom(12)
+    ct = aes.encrypt(nonce, raw_priv, None)
+    blob_path = PRIVATE_KEY_FILENAME + ".blob"
+    write_private_pem_file(nonce + ct, blob_path)
+
+    # derive publik key from privkey
+    public_bytes = privkey.public_key().public_bytes(encoding=Encoding.Raw, format=PublicFormat.Raw)
+    pk_str = base64.b64encode(public_bytes).decode('utf-8')
+    return pk_str
+
+
 def read_privkey() -> Ed25519PrivateKey:
     """
     Read private key from encrypted blob file using keyring.

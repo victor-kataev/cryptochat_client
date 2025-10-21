@@ -2,8 +2,7 @@ import os
 import requests
 
 from crypto.constants import PRIVATE_KEY_FILENAME
-from crypto.keystore import create_account_with_mnemonic, read_privkey
-from crypto.keys import import_account_from_mnemonic
+from crypto.keystore import create_account_with_mnemonic, import_keypair_from_mnemonic, read_privkey
 from storage.metadata import read_uid, save_uid
 
 from .api import Client
@@ -52,6 +51,17 @@ def register(client: Client):
     print("---")
 
 
+def import_account_from_mnemonic(mnemonic: str, client: Client):
+    pk_str = import_keypair_from_mnemonic(mnemonic.lower())
+    res = requests.post(f"{client.base_url}/api/v1/auth/fetch_uid", json={"pk": pk_str})
+    if res.status_code != 200:
+        raise RuntimeError(f"Failed to fetch UID. Server responded with {res.status_code}")
+    uid = res.json()['uid']
+    save_uid(uid)
+    print("\nWelcome back!")
+    print(f"UID: {uid}\n")
+
+
 def command_start(args=None):
     """
     Start command handler - registers or logs in user.
@@ -61,11 +71,11 @@ def command_start(args=None):
     """
     client = Client()
     if not os.path.exists(PRIVATE_KEY_FILENAME + ".blob"):
-        input_mnemonic = input("First time login on this device.\nEnter your seed phrase to login to an existing account or press Enter with no input to register a new one:")
-        if not input_mnemonic:
-            register(client)
+        input_mnemonic = input("First time login on this device.\nEnter your seed phrase to login to an existing account or press Enter with no input to register a new one:\n")
+        if input_mnemonic:
+            import_account_from_mnemonic(input_mnemonic, client)
         else:
-            import_account_from_mnemonic(input_mnemonic)
+            register(client)
     login(client)
 
     print(client.session.session_token)
