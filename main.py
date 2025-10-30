@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -14,9 +15,11 @@ if __name__ == "__main__":
     start_parser = subparsers.add_parser("start", help="Start chat")
     start_parser.set_defaults(handler=command_start)
 
+    subparsers.add_parser("clean/logout", help="Removes the credential folder from the current machine")
+
     args = parser.parse_args()
 
     if hasattr(args, 'handler'):
-        args.handler(args)
+        asyncio.run(args.handler(args))
     else:
-        command_start()
+        asyncio.run(command_start())

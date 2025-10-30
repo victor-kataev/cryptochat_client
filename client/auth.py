@@ -1,9 +1,13 @@
 import os
 import requests
+import asyncio
+import websockets
+import time
 
 from crypto.constants import PRIVATE_KEY_FILENAME
 from crypto.keystore import create_account_with_mnemonic, import_keypair_from_mnemonic, read_privkey
 from storage.metadata import read_uid, save_uid
+from front.tui import TextualUI
 
 from .api import Client
 
@@ -62,7 +66,13 @@ def import_account_from_mnemonic(mnemonic: str, client: Client):
     print(f"UID: {uid}\n")
 
 
-def command_start(args=None):
+sender_queue = asyncio.Queue()
+
+
+
+
+
+async def command_start(args=None):
     """
     Start command handler - registers or logs in user.
 
@@ -78,5 +88,19 @@ def command_start(args=None):
             register(client)
     login(client)
 
-    print(client.session.session_token)
-    # display_UI(client)
+    ui = TextualUI(client)
+
+    async def websocket_handler():
+        async with websockets.connect(f"ws://localhost:8080/ws?token={client.session.session_token}") as ws:
+            async def receiver():
+                async for msg in ws:
+                    await ui.receiver_queue.put(msg)
+
+            async def sender():
+                while True:
+                    msg = await ui.sender_queue.get()
+                    await ws.send(msg)
+
+            await asyncio.gather(receiver(), sender())
+
+    await asyncio.gather(websocket_handler(), ui.run_async())
