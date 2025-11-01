@@ -37,11 +37,10 @@ class ChatScreen(Screen):
     
     def compose(self):
         yield Static(f"You are talking with {self.uid}")
-        self.scroll_container = VerticalScroll()
-        with self.scroll_container:
+        # this container doesn't scroll when chat is full
+        with VerticalScroll():
             self.chat_window = Static(f"", id="chat-window-id")
             yield self.chat_window
-        yield self.scroll_container
         self.message_input = Input(placeholder="Message...")
         yield self.message_input
 
