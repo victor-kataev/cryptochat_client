@@ -1,17 +1,68 @@
 import asyncio
 
+from textual.screen import Screen
+from textual.message import Message
 from textual.app import App
-from textual.widgets import Static, Label, Button, Input, Footer
+from textual.widgets import Static, Label, Button, Input, Footer, Header
+from textual.containers import HorizontalScroll, VerticalScroll
 from client.api import Client
 
 
-class TextualUI(App):
+dummy_chats = {
+    "vovan": "hey, how you doin?",
+    "pahan": "hey, how you doin?",
+    "kran": "hey, how you doin?",
+    "drabadan": "hey, how you doin?",
+    "toksikoman": "hey, how you doin?",
+}
+
+
+# class NewChatMessage(Message):
+#     def __init__(self, content):
+#         super().__init__()
+#         self.content = content
+
+
+class ChatScreen(Screen):
     BINDINGS = [
-        ("t", "toggle_background", "toggle"),
-        ("l", "lol", "oweir")
+        ("escape", "app.pop_screen", "back")
     ]
 
-    bg_toggled = False
+    def __init__(self, client: Client, sq: asyncio.Queue, uid: str):
+        super().__init__()
+        self.client = client
+        self.sender_queue = sq
+        self.uid = uid
+    
+    def compose(self):
+        yield Static(f"You are talking with {self.uid}")
+        self.scroll_container = VerticalScroll()
+        with self.scroll_container:
+            self.chat_window = Static(f"", id="chat-window-id")
+            yield self.chat_window
+        yield self.scroll_container
+        self.message_input = Input(placeholder="Message...")
+        yield self.message_input
+
+    async def on_input_submitted(self, event: Input.Submitted) -> None:
+        user_text = event.value
+        if not event.value:
+            return
+        await self.sender_queue.put(user_text)
+        self.message_input.clear()
+
+    # def on_new_chat_message(self, message: NewChatMessage):
+    #     print("called")
+    #     output = self.query_one("#chat-window-id", Static)
+    #     current_content = str(output.content)
+    #     output.update(f"{current_content}\n{message.content}")
+
+
+class TextualUI(App):
+    CSS_PATH = "styles.tcss"
+    BINDINGS = [
+        ("escape", "quit", "quit")
+    ]
 
     def __init__(self, client: Client):
         super().__init__()
@@ -20,68 +71,63 @@ class TextualUI(App):
         self.receiver_queue = asyncio.Queue()
 
     def compose(self):
-        self.static = Static(f"Your session token: [bold red]{self.client.session.session_token}[/bold red]", id="output")
-        yield self.static
+        yield Header()
 
-        self.message_input = Input(placeholder="...")
-        yield self.message_input
+        yield Button("chat", id="chat-button")
 
+        # self.token = Static(f"Your session token: [bold white]{self.client.session.session_token}[/bold white]")
+        # yield self.token
 
-        # self.label = Label("I am [bold yellow]a yellow[/bold yellow] [yellow]label[/yellow]")
-        # yield self.label
+        for k, v in dummy_chats.items():
+            with HorizontalScroll(classes="conversation", id=f"{k}"):
+                self.nickname = Static(f"[bold]{k}[/bold]", classes="nickname")
+                yield self.nickname
+                yield Static(f"{v}", classes="last-message-quick-access")
 
-        # yield Button("click")
-        # yield Button("primary", variant="primary")
-        # yield Button.success("success")
-        # yield Button.warning("warning")
-        # yield Button.error("erro")
-
-        # yield Input(placeholder="your input")
-        # yield Input(placeholder="your password", password=True)
-        # yield Input(placeholder="your number", type="number", tooltip="digits only, eblan")
-
+            # with HorizontalScroll(classes="conversation", id=f"{self.client.uid}"):
+            #     self.nickname = Static(f"[bold]{self.client.uid}[/bold]", classes="nickname")
+            #     yield self.nickname
+            #     yield Static(f"{self.client.session.session_token}", classes="last-message-quick-access")
+                
         yield Footer()
 
-    def on_mount(self):
-        # self.static.styles.background = "blue"
-        self.static.styles.border = ("solid", "white")
-        self.static.styles.text_align = "center"
-        self.static.styles.padding = 4, 11
-        self.static.styles.margin = 4, 9
+    def on_button_pressed(self, event):
+        print("button id", event.button.id)
+        if event.button.id == "chat-button":
+            self.push_screen("chatscreen")
 
-        # Start background task to process received messages
+    def on_click(self, event):
+        current = event.widget
+        while current is not None:
+            if isinstance(current, HorizontalScroll) and "conversation" in current.classes:
+                nickname_widget = current.query_one(".nickname", Static)
+                uid = str(nickname_widget.content)
+                self.push_screen(ChatScreen(self.client, self.sender_queue, uid))
+                break
+            current = current.parent
+
+    def on_mount(self):
         self.process_messages_task = asyncio.create_task(self.process_received_messages())
 
+    
     async def process_received_messages(self):
         """Continuously process messages from receiver_queue and update the UI"""
         while True:
             try:
-                # Get message from the receiver queue
                 msg = await self.receiver_queue.get()
 
-                # Update the static output element
-                output = self.query_one("#output", Static)
-                current_content = str(output.content)
-                output.update(f"{current_content}\n{msg}")
+                # Use current screen
+                if hasattr(self.screen, "query_one"):
+                    try:
+                        output = self.screen.query_one("#chat-window-id", Static)
+                        current_content = str(output.content)
+                        output.update(f"{current_content}\n{msg}")
+                    except Exception:
+                      pass
 
+                # self.post_message(NewChatMessage(msg))
             except Exception as e:
-                # Handle any errors gracefully
                 self.log(f"Error processing message: {e}")
-
-    def action_toggle_background(self):
-        self.bg_toggled = not self.bg_toggled
-        if self.bg_toggled:
-            self.static.styles.background = "red"
-        else:
-            self.static.styles.background = "blue"
-
-    async def on_input_submitted(self, event: Input.Submitted) -> None:
-        user_text = event.value
-        await self.sender_queue.put(user_text)
-        # output = self.query_one("#output", Static)
-        # current_content = output.content
-        # output.update(str(current_content) + f"\n- {user_text}")
-        self.message_input.clear()
 
     async def on_unmount(self):
         """Clean up background task when app closes"""

@@ -66,12 +66,6 @@ def import_account_from_mnemonic(mnemonic: str, client: Client):
     print(f"UID: {uid}\n")
 
 
-sender_queue = asyncio.Queue()
-
-
-
-
-
 async def command_start(args=None):
     """
     Start command handler - registers or logs in user.
