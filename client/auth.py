@@ -84,17 +84,5 @@ async def command_start(args=None):
 
     ui = TextualUI(client)
 
-    async def websocket_handler():
-        async with websockets.connect(f"ws://localhost:8080/ws?token={client.session.session_token}") as ws:
-            async def receiver():
-                async for msg in ws:
-                    await ui.receiver_queue.put(msg)
-
-            async def sender():
-                while True:
-                    msg = await ui.sender_queue.get()
-                    await ws.send(msg)
-
-            await asyncio.gather(receiver(), sender())
-
-    await asyncio.gather(websocket_handler(), ui.run_async())
+    await ui.run_async()
+    

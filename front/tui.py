@@ -1,4 +1,5 @@
 import asyncio
+import websockets
 
 from textual.screen import Screen
 from textual.message import Message
@@ -106,7 +107,21 @@ class TextualUI(App):
                 break
             current = current.parent
 
-    def on_mount(self):
+    async def on_mount(self):
+        async def websocket_handler():
+            async with websockets.connect(f"ws://localhost:8080/ws?token={self.client.session.session_token}") as ws:
+                async def receiver():
+                    async for msg in ws:
+                        await self.receiver_queue.put(msg)
+
+                async def sender():
+                    while True:
+                        msg = await self.sender_queue.get()
+                        await ws.send(msg)
+
+                await asyncio.gather(receiver(), sender())
+
+        self.websocket_task = asyncio.create_task(websocket_handler())
         self.process_messages_task = asyncio.create_task(self.process_received_messages())
 
     
@@ -130,10 +145,11 @@ class TextualUI(App):
                 self.log(f"Error processing message: {e}")
 
     async def on_unmount(self):
-        """Clean up background task when app closes"""
-        if hasattr(self, 'process_messages_task'):
-            self.process_messages_task.cancel()
-            try:
-                await self.process_messages_task
-            except asyncio.CancelledError:
-                pass
+        """Clean up background tasks when app closes"""
+        self.process_messages_task.cancel()
+        self.websocket_task.cancel()
+        try:
+            await self.process_messages_task
+            await self.websocket_task
+        except asyncio.CancelledError:
+            pass
