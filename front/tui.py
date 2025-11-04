@@ -1,5 +1,8 @@
 import asyncio
 import websockets
+import json
+import httpx
+from httpx import HTTPStatusError
 
 from textual.screen import Screen
 from textual.message import Message
@@ -33,14 +36,40 @@ class ChatScreen(Screen):
         super().__init__()
         self.client = client
         self.sender_queue = sq
+        # TODO:  must be conversation_id not uid
         self.uid = uid
-    
+
+    async def on_mount(self):
+        headers = {
+            "Authorization": f"Bearer {self.client.session.session_token}"
+        }
+        async with httpx.AsyncClient(base_url=self.client.base_url, headers=headers) as aclient:
+            res = await aclient.get("/api/v1/conversations/1/messages")
+            if res.status_code != 200:
+                raise Exception(f"AsyncClient: error fetching messages. Return code: {res.status_code}")
+            self.chat_history = json.loads(res.text)
+
+            # Update the UI after fetching data
+            self.query_one("#chat-history-display", Static).update(f"self.chat_history: {self.chat_history['messages']}")
+            container = self.query_one("#chat-history-container", VerticalScroll)
+            count = 1
+            for message in self.chat_history['messages']:
+                if count % 2 == 1:
+                    await container.mount(Static(message['body'], classes="message message-own"))
+                else:
+                    await container.mount(Static(message['body'], classes="message message-other"))
+                count += 1
+            container.scroll_end(animate=False)
+                # if message['sender_uid'] == self.client.uid:
+                #     await container.mount(Static(str(message), classes="message message-other"))
+                # else:
+                #     await container.mount(Static(str(message), classes="message message-other"))
+
+
     def compose(self):
         yield Static(f"You are talking with {self.uid}")
-        # this container doesn't scroll when chat is full
-        with VerticalScroll():
-            self.chat_window = Static(f"", id="chat-window-id")
-            yield self.chat_window
+        with VerticalScroll(id="chat-history-container"):
+            pass
         self.message_input = Input(placeholder="Message...")
         yield self.message_input
 
@@ -48,7 +77,13 @@ class ChatScreen(Screen):
         user_text = event.value
         if not event.value:
             return
-        await self.sender_queue.put(user_text)
+
+        payload = {
+            "action": "send_message",
+            "conversation_id": 1, # TODO
+            "body": user_text
+        }
+        await self.sender_queue.put(json.dumps(payload))
         self.message_input.clear()
 
     # def on_new_chat_message(self, message: NewChatMessage):
@@ -79,6 +114,7 @@ class TextualUI(App):
         # yield self.token
 
         for k, v in dummy_chats.items():
+            # TODO: store conversation_id in id=
             with HorizontalScroll(classes="conversation", id=f"{k}"):
                 self.nickname = Static(f"[bold]{k}[/bold]", classes="nickname")
                 yield self.nickname
@@ -100,15 +136,16 @@ class TextualUI(App):
         current = event.widget
         while current is not None:
             if isinstance(current, HorizontalScroll) and "conversation" in current.classes:
+                # TODO; conversation_id not uid
                 nickname_widget = current.query_one(".nickname", Static)
                 uid = str(nickname_widget.content)
-                self.push_screen(ChatScreen(self.client, self.sender_queue, uid))
+                self.push_screen(ChatScreen(self.client, self.sender_queue, uid)) # conversation_id
                 break
             current = current.parent
 
     async def on_mount(self):
         async def websocket_handler():
-            async with websockets.connect(f"ws://localhost:8080/ws?token={self.client.session.session_token}") as ws:
+            async with websockets.connect(f"ws://localhost:8080/api/v1/conversations/ws?token={self.client.session.session_token}") as ws:
                 async def receiver():
                     async for msg in ws:
                         await self.receiver_queue.put(msg)
@@ -133,9 +170,9 @@ class TextualUI(App):
                 # Use current screen
                 if hasattr(self.screen, "query_one"):
                     try:
-                        output = self.screen.query_one("#chat-window-id", Static)
-                        current_content = str(output.content)
-                        output.update(f"{current_content}\n{msg}")
+                        container = self.screen.query_one("#chat-history-container", VerticalScroll)
+                        await container.mount(Static(msg, classes="message message-own"))
+                        container.scroll_end(animate=False)
                     except Exception:
                       pass
 

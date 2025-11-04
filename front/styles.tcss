@@ -26,3 +26,31 @@
     width: 100%;
     height: 20;
 }
+
+
+.message {
+    border: solid;
+    padding: 1 2;
+    margin: 1 0;
+    max-width: 60%;
+    width: auto;
+}
+
+.message-own {
+    align: right top;
+    background: $primary;
+    text-align: right;
+    border: solid $primary-darken-2;
+}
+
+.message-other {
+    align: left top;
+    background: $surface;
+    text-align: left;
+    border: solid $border;
+}
+
+#chat-history-container {
+    height: 1fr;
+    width: 100%;
+}

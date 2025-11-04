@@ -1,8 +1,5 @@
 import os
 import requests
-import asyncio
-import websockets
-import time
 
 from crypto.constants import PRIVATE_KEY_FILENAME
 from crypto.keystore import create_account_with_mnemonic, import_keypair_from_mnemonic, read_privkey
