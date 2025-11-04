@@ -50,7 +50,6 @@ class ChatScreen(Screen):
             self.chat_history = json.loads(res.text)
 
             # Update the UI after fetching data
-            self.query_one("#chat-history-display", Static).update(f"self.chat_history: {self.chat_history['messages']}")
             container = self.query_one("#chat-history-container", VerticalScroll)
             count = 1
             for message in self.chat_history['messages']:
